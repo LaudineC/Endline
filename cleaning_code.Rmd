@@ -1,0 +1,915 @@
+---
+title:  "Cleaning code"
+author: "Laudine Carbuccia"
+date: "2024-01-30"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '4'
+  bookdown::pdf_book:
+    latex_engine: pdflatex
+    fig_height: 6
+    fontsize: 12
+    fig_caption: yes
+    toc: yes
+    toc_depth: 4
+    keep_tex: yes
+    always_allow_html: yes
+    highlight: pygments
+    number_sections: yes
+  output: null
+  bookdown::word_document2:
+    reference_docx: ../StyleReliance.docx
+    fig_caption: yes
+    toc: yes
+    toc_depth: 2
+    always_allow_html: yesdata
+documentclass: report
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      fig.align ='center'
+)
+
+```
+
+
+```{r EndlineRCTcleaning, include=FALSE}
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%##
+##### Clean the datasets %%%%%%%%%%%##
+#####%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%##
+library(tidyverse)
+
+# Import the RCT dataset from *Baseline*: Baseline_augmented.csv
+Baseline_augmented <- read_csv("../Endline/Data/Baseline_augmented.csv")
+
+# Import the dataset from *Endline*: Endline.csv
+Endline_data <- read_csv("../Endline/Data/Endline.csv")
+# Import the second data collection  RCT set that has to be created due to a bug in qualtrics
+Endline_extra <- read_csv("../Endline/Data/Endline_extra.csv")
+
+## Both Endline_data and Endline_extra contain observations from the RCT sample. We want to merge them into 1 dataset
+
+#############################################################
+######################## RCT CLEANING ######################
+#############################################################
+
+#Get the data ready for merging
+##create a df with the first two rows that contains the full questions, in case it is needed
+details_values <- Endline_data[1:2,]
+
+
+##remove these rows from the main df
+Endline_data<- Endline_data[-c(1:2),]
+Endline_extra <- Endline_extra[-c(1:2),]
+
+# Merge the two datasets to keep only Endline_data
+Endline_data <- bind_rows(Endline_data, Endline_extra)
+
+#change the encoding for UTF-8 so that everything is more readable
+for (col in colnames(Endline_data)){
+  Encoding(Endline_data[[col]]) <- "UTF-8"
+  }
+
+
+# TO DO: put all missing values as NA
+
+
+
+################ Variables FORMATTING #############
+
+
+# convert relevant VARIABLES INTO numerical ones
+
+
+names_numerical <- c("NormsOpposed_1_TEXT",
+                     "AffordCost_1_TEXT", "Duration (in seconds)", "MovedZipcode_1_TEXT", 
+                     "BirthDate#2_1", "BirthDate#3_1", "BirthDate2#2_1", "BirthDate2#3_1", 
+                     "ECSStartDate#2_1", "ECSStartDate#3_1", "ECSIntensity_1_TEXT", 
+                     "Prematured_2_TEXT", "BirthWeight1_1_TEXT", "HealthHospA1_1_TEXT", "HealthHospB1_4_TEXT",
+                     "HealthHospA2_1_TEXT", "HealthHospB2_4_TEXT", "HealthHospMomA_1_TEXT", "HealthHospMomB_4_TEXT",
+                     "Breastfeed1_1_TEXT", "Breastfeed2_1_TEXT", "AffordCostCertainty_1", 
+                     "ControlECS_1", "ControlCreche_1", "PsyStress_1", "PsyComplicated_1",
+                     "PsySatisfaction_1", "Satisfaction_1", "Usefulness_1"
+                     )
+
+Endline_data[, names_numerical] <- lapply(Endline_data[, names_numerical], as.numeric)
+
+
+# convert relevant VARIABLES INTO date ones
+
+## Define the first date format
+date_formats_1 <- c("%Y-%m-%d %H:%M:%S")
+
+
+### Specify the date-time columns
+date_columns <- c("RecordedDate", "EndDate", "StartDate")
+
+
+### Loop through the date columns and convert them
+for (col in date_columns) {
+  Endline_data[[col]] <- as.POSIXct(Endline_data[[col]], format = date_formats_1, tz = "UTC")
+  # Handle NA values
+  Endline_data[[col]][is.na(Endline_data[[col]])] <- as.POSIXct(NA, tz = "UTC")
+}
+
+# Create variable with only time (T) and days (D)
+Endline_data$StartDate_T <-strftime(Endline_data$StartDate, format="%H:%M:%S")
+Endline_data$EndDate_T <-strftime(Endline_data$StartDate, format="%H:%M:%S")
+Endline_data$StartDate_D <- as.Date(Endline_data$StartDate)
+Endline_data$EndDate_D <- as.Date(Endline_data$EndDate)
+
+
+
+## Define the second date format
+
+date_formats_2 <- c( "%d/%m/%Y")
+
+### Specify the date-time columns
+date_columns <- c("ECSAppDateWanted_1_TEXT", "ECSAppTiming_1_TEXT", "ECSRensWhen_1_TEXT", "WorkMotherWantWhen_1_TEXT", 
+                  "WorkMFaherWantWhen_1_TEXT")
+
+
+### Loop through the date columns and convert them
+for (col in date_columns) {
+  Endline_data[[col]] <- as.POSIXct(Endline_data[[col]], format = date_formats_2, tz = "UTC")
+  # Handle NA values
+  Endline_data[[col]][is.na(Endline_data[[col]])] <- as.POSIXct(NA, tz = "UTC")
+}
+
+
+
+
+
+# compute the splitted dates
+
+## Baby Birth Date
+Sys.setlocale("LC_TIME", "en_GB.UTF-8")
+
+Endline_data$BabyBirthDate <- paste(Endline_data$`BirthDate#2_1`,Endline_data$`BirthDate#1_1`, Endline_data$`BirthDate#3_1`, sep="-")
+Endline_data$BabyBirthDate <-  as.Date(Endline_data$BabyBirthDate, format = '%d-%B-%Y')
+
+
+## ECS Start Date
+
+Endline_data$ECSStartDate <- paste(Endline_data$`ECSStartDate#2_1`,Endline_data$`ECSStartDate#1_1`, Endline_data$`ECSStartDate#3_1`, sep="-")
+Endline_data$ECSStartDate <-  as.Date(Endline_data$ECSStartDate, format = '%d-%B-%Y')
+
+
+## ECS for Brother and Sister Timing
+Endline_data$ECSBrosisTiming <- paste("01", Endline_data$`ECSBrosisTiming#1_1`, Endline_data$`ECSBrosisTiming#2_1`,  sep="-")
+Endline_data$ECSBrosisTiming <-  as.Date(Endline_data$ECSBrosisTiming, format = '%d-%B-%Y')
+
+
+
+## ECS Want To: STart Date wanted
+Endline_data$ECSPlanToStartDate <- paste("01", Endline_data$`ECSPlanToStartDate#1_1`, Endline_data$`ECSPlanToStartDate#2_1`,  sep="-")
+Endline_data$ECSPlanToStartDate <-  as.Date(Endline_data$ECSPlanToStartDate, format = '%d-%B-%Y')
+
+
+
+#convert relevant VARIABLES INTO FACTORS
+##NB: pour ajouter les stats sur les heures, prendre le RCTset du 24/10 et ajouter "'HOUR_1','HOUR_2','HOUR_3','HOUR_4',"
+#names <- c("ResponseId", "SurveyorName", "MaternityWard", 
+#            "FmlyIncome", "Income", "ECSNeed", "ECSIdealAgeEntry", "AffordSubsidies", "AffordNMCostWB", "AffordOppCost", 
+#           "AffordNMCostCareer",  "AccessEasy", "AccessHours", "AccessInformalCare", "Norms",  "LikertAccessInfo", "LikertReturnHK", #
+#             "Depriv_1","Depriv_2",
+#           "LevelExpression", "LevelComprehension",  "SubjectiveInfoLevel", "PartnerInvolvement", "Voucher", "Distress", "Language",
+#            "WorkMother", "WorkFather", "Start"
+#           
+#)
+#
+#Endline_data[,names] <- lapply(Endline_data[,names] , factor)
+
+# Note: the best practice should be to keep all the variables in the character format as much as possible
+Endline_data[sapply(Endline_data, is.character)] <- lapply(Endline_data[sapply(Endline_data, is.character)], as.factor)
+
+###### CREATION OF THE RCT database ####
+
+# We want join the Endline and Baseline datasets to have the most information about participants
+
+#RCT_tot <- Baseline_augmented %>% 
+#  left_join(Endline_data, by = c("ResponseId" = "ExternalReference"), suffix = c("Baseline", "Endline"))
+
+RCT_tot <- Baseline_augmented %>% 
+  right_join(Endline_data, by = c("ResponseId" = "ExternalReference"), suffix = c("Baseline", "Endline"))
+
+
+###### Cleaning the dataset RCT_tot
+
+# First we order factors and recode labels
+RCT_tot <- RCT_tot %>% mutate(
+  OrderedEduc=factor(OrderedEduc, levels = # Level of education of the mother
+                       c("No school", "9-11", "Brevet", "CAP", "Bac", "Bac +2", "Bac + 3", "Bac + 4/5", "+ Bac+5"), ordered = TRUE),
+  IncomeBaseline = factor(IncomeBaseline, # Mother's income at Baseline
+                  levels = c("NSP","- 500","500-700", "1000-1500", 
+                             "1500-2000", "2000-2500", "2500-3000", "3000-4500", "4500-5000",  "5000-6000", "Ne veut pas répondre" ), ordered = TRUE),
+    IncomeEndline = factor(IncomeEndline, #  Mother's income at Endline
+                  levels = c("Je ne sais pas","Moins de 500 euros","De 500 à moins de 700 euros", "De 700 à moins de 1 000 euros", "De 1 000 à moins de 1 500 euros", "De 1 500 à moins de 2 000 euros", "De 2 000 à moins de 2 500 euros", "De 2 500 à moins de 3 000 euros", "De 3 000 à moins de 4 000 euros", "De 4 000 à moins de 5 000 euros", "De 5 000 à moins de 6 000 euros",  "Plus de 6000 euros", "Je ne souhaite pas répondre" ), ordered = TRUE),
+  FmlyIncomeBaseline = factor(FmlyIncomeBaseline,  # Family income at Baseline (to be deleted because of line 288?)
+                      levels =c("NSP", "- 500", "500-700", "700-1000", "1000-1500", 
+                                "1500-2000", "2000-2500", "2500-3000", "3000-4500", "4500-5000",
+                                "5000-6000", "6000-7000", "7000-8000", "+8000", "Ne veut pas répondre"), ordered = TRUE),
+    FmlyIncomeBaseline = ifelse(is.na(FmlyIncomeBaseline), as.character(IncomeBaseline),  as.character(FmlyIncomeBaseline)), # for single parents, we want Family income to be the same as mother's income (by definition)
+    FmlyIncomeBaseline = factor(FmlyIncomeBaseline, # Family income at Baseline, with single parents included
+                      levels =c("NSP", "- 500", "500-700", "700-1000", "1000-1500", 
+                                "1500-2000", "2000-2500", "2500-3000", "3000-4500", "4500-5000",
+                                "5000-6000", "6000-7000", "7000-8000", "+8000", "Ne veut pas répondre"), ordered = TRUE),
+  FmlyIncomeEndline = factor(FmlyIncomeEndline, # Do the same for Family income at Endline
+                      levels =c("Je ne sais pas","Moins de 500 euros","De 500 à moins de 700 euros", "De 700 à moins de 1 000 euros", "De 1 000 à moins de 1 500 euros", "De 1 500 à moins de 2 000 euros", "De 2 000 à moins de 2 500 euros", "De 2 500 à moins de 3 000 euros", "De 3 000 à moins de 4 000 euros", "De 4 000 à moins de 5 000 euros", "De 5 000 à moins de 6 000 euros", "De 6 000 à moins de 10 000 euros","10 000 euros ou plus", "Je ne souhaite pas répondre" ), ordered = TRUE), 
+  FmlyIncomeEndline = ifelse(is.na(FmlyIncomeEndline), as.character(IncomeEndline), as.character(FmlyIncomeEndline)), # Single parents
+ FmlyIncomeEndline = factor(FmlyIncomeEndline, 
+                      levels =c("Je ne sais pas","Moins de 500 euros","De 500 à moins de 700 euros", "De 700 à moins de 1 000 euros", "De 1 000 à moins de 1 500 euros", "De 1 500 à moins de 2 000 euros", "De 2 000 à moins de 2 500 euros", "De 2 500 à moins de 3 000 euros", "De 3 000 à moins de 4 000 euros", "De 4 000 à moins de 5 000 euros", "De 5 000 à moins de 6 000 euros", "De 6 000 à moins de 10 000 euros","10 000 euros ou plus", "Je ne souhaite pas répondre" ), ordered = TRUE), 
+  AffordNMCostWBOrderedBaseline =factor(AffordNMCostWBBaseline, # Reorder Cost of staying at ome on WB
+                               levels=c("Négatif",  "Je ne sais pas encore","Pas d'impact","Positif"), ordered = TRUE # would staying at home have a positive, 
+  ),                     AffordNMCostWBOrderedEndline =factor(AffordNMCostWBEndline,  # Reorder Cost of staying at home on Well Being at BASELINE
+                               levels=c("Négatif",  "Je ne sais pas encore","Pas d'impact","Positif"), ordered = TRUE # would staying at home have a positive, 
+  ),                                                                   # negative or null impact on mother's well being
+  AffordOppCostBaseline =factor(AffordOppCostBaseline, # Reorder opportunity costs (effect on family budget)
+                       levels=c("Négatif",  "Je ne sais pas encore", "Pas d'impact", "Positif"), ordered = TRUE # would staying at home have a positive, 
+  ),  
+  AffordOppCostEndline =factor(AffordOppCostEndline, # Do the same for Endline: Opp Costs
+                       levels=c("Négatif",  "Je ne sais pas encore", "Pas d'impact", "Positif"), ordered = TRUE # would staying at home have a positive, 
+  ),  # negative or null impact on household's income
+  AffordNMCostCareerBaseline =factor(AffordNMCostCareerBaseline, # Career Baseline: would staying at home have a positive, 
+                            levels=c("Négatif", "Pas d'impact", "Je ne sais pas encore","Positif"), ordered = TRUE # negative or null impact on mother's career
+  ), AffordNMCostCareerEndline =factor(AffordNMCostCareerEndline, # Career Endline: would staying at home have a positive, 
+                            levels=c("Négatif", "Pas d'impact", "Je ne sais pas encore","Positif"), ordered = TRUE # negative or null impact on mother's career
+  ),
+  AccessEasyBaseline = factor(AccessEasyBaseline,levels =c("impossible","quasiment impossible", # Whether accessing a slot in ECS is seen as easy (Baseline)
+                                         "très difficile","assez difficile",
+                                         "je ne sais pas","assez facile",
+                                         "très facile"),ordered = TRUE), 
+   AccessEasyEndline = factor(AccessEasyEndline ,levels =c("impossible","quasiment impossible", # Whether accessing a slot in ECS is seen as easy (Endline)
+                                         "très difficile","assez difficile",
+                                         "je ne sais pas","assez facile",
+                                         "très facile"),ordered = TRUE), 
+  AccessHoursBaseline = factor(AccessHoursBaseline,levels =c("Oui", # Whether ECS opening hours fit parents working hours (Baseline)
+                                           "Non, mais on prendra un autre mode de garde en plus","Je ne sais pas encore",
+                                           "Non"),ordered = TRUE),
+  AccessHoursEndline =factor(AccessHoursEndline, levels =c("Oui", # Whether ECS opening hours fit parents working hours (Endline)
+                                           "Non, mais on prendra un autre mode de garde en plus","Je ne sais pas encore",
+                                           "Non"),ordered = TRUE),
+  AccessInformalCareBaseline = factor(AccessInformalCareBaseline,levels =c("Non", "Je ne sais pas encore", # Whether accessing informal care is feasible (Baseline)
+                                                         "Oui, pour dépanner / très ponctuellement", "Oui, de temps en temps", "Oui, autant que nécessaire"),ordered = TRUE),
+    AccessInformalCareEndline = factor(AccessInformalCareEndline,levels =c("Non", "Oui, pour dépanner / très ponctuellement", "Oui, de temps en temps", "Oui, autant que nécessaire"),ordered = TRUE), #  # Whether accessing informal care is feasible (Endline)
+  NormsBaseline = factor(NormsBaseline,
+               levels=c("Ne sait pas","Aucune","Une minorité","Moitié moitié","La plupart","Toutes"), ordered = TRUE # how many mothers in their surroundings use childcare  (Baseline)
+  ), NormsEndline = factor(NormsEndline,
+               levels=c("Ne sait pas","Aucune","Une minorité","Moitié moitié","La plupart","Toutes"), ordered = TRUE # how many mothers in their surroundings use childcare (Baseline)
+  ),
+  LikertAccessInfoBaseline=factor(LikertAccessInfoBaseline, # Is it feasible to access information about childcare (Baseline)
+                          levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"), ordered = TRUE), # strongly disagree, disagree, don't know, agree, strongly agree
+  LikertAccessInfoEndline = factor(LikertAccessInfoEndline, # Is it feasible to access information about childcare (Endline)
+                          levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"), ordered = TRUE), 
+  LikertReturnHKBaseline=factor(LikertReturnHKBaseline, # believe in childcare returns on investment: is a child that attended childcare better developed in preschool? (Baseline)
+                        levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord") , ordered = TRUE), # strongly disagree, disagree, don't know, agree, strongly agree
+  LikertReturnHKEndline=factor(LikertReturnHKEndline, # believe in childcare returns on investment: is a child that attended childcare better developed in preschool? (Endline)
+                        levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord") , ordered = TRUE), # strongly disagree, disagree, don't know, agree, strongly agree
+  LikertAccessSoc=factor(LikertAccessSoc, # Does the mother have someone that can help with paperwork if needed
+                         levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"), ordered = TRUE), # strongly disagree, disagree, don't know, agree, strongly agree
+  TrustFam=factor(TrustFam, # TRUST: Do the parents trust their close family (parents, brother, sister, etc.) to take care of the baby
+                  levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"),  ordered = TRUE
+  ),
+  TrustFriend=factor(TrustFriend, # TRUST: Do the parents trust their friends to take care of the baby
+                     levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"), ordered = TRUE
+  ),
+  TrustAssMat=factor(TrustAssMat, # TRUST: Do the parents trust a private childminder to take care of the baby
+                     levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"), ordered = TRUE
+  ),
+  TrustCreche=factor(TrustCreche, # TRUST: Do the parents trust daycares to take care of the baby
+                     levels=c("Très en désaccord","Assez en désaccord","Je ne sais pas","Assez d’accord","Très d’accord"), ordered = TRUE
+  ),
+  DeprivClothes =factor(DeprivClothes,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to buy clothes?
+  DeprivFood    =factor(DeprivFood,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to buy food?
+  DeprivBills   =factor(DeprivBills,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to pay for the bills?
+  DeprivHolidays=factor(DeprivHolidays,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to go in holidays?
+  DeprivHousing =factor(DeprivHousing,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to pay for housing?
+  DeprivEndlineHolidays=factor(Depriv_1,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to go in holidays?
+  DeprivEndlineHousing =factor(Depriv_2,levels=c("Pas du tout","Un peu","Beaucoup","Je ne souhaite pas répondre"), ordered = TRUE), # DEPRIVATION: do parents struggle to pay for housing?
+  InformalReciprocity = factor(InformalReciprocity, # Do the parents already take care of the children of others
+                               levels = c( "Non", " Je ne souhaite pas répondre", "Oui, pour dépanner / très ponctuellement",
+                                           "Oui, de temps en temps", " Oui, très souvent"), ordered = TRUE), # 
+  OrderedEduc2=factor(OrderedEduc2, levels  = c(
+    "No school", "9-11", "Brevet", "CAP", "Bac", "Bac +2", "Bac + 3", "Bac + 4/5", "+ Bac+5","Missing","No Partner"), ordered = TRUE), # Education level of the partner 
+  ActiveBaseline = ifelse(as.character(Act3) == "NSP", "Inactive", as.character(Act3)),  # Dummy for mother active at Baseline
+  ActiveBaseline = relevel(as.factor(ActiveBaseline), ref = "Inactive"), # put inactive as the reference category
+  Active1or0Baseline = ifelse(as.character(ActiveBaseline) == "Inactive", 0, 1), # Create a [0, 1] variable
+  Educ3 = fct_collapse(OrderedEduc, "Bac or Less" = c("No school", "9-11", "Brevet", "CAP", "Bac"), 
+                       "Undergrad" = c("Bac + 3", "Bac +2"), 
+                       "Graduate" = c("Bac + 4/5", "+ Bac+5") ), # Education level with only 3 levels
+  Educ3Dad = fct_collapse(OrderedEduc2, "Bac or Less" = c("No school", "9-11", "Brevet", "CAP", "Bac"), 
+                          "Undergrad" = c("Bac + 3", "Bac +2"), # Education level of the partner with only 3 levels
+                          "Graduate" = c("Bac + 4/5", "+ Bac+5"), "Missing" = c("Missing", "No Partner" )), 
+  Intention1or0Baseline = ifelse(as.character(Intention.x) == "No", 0, 1),  # Whether they intended to use early childcare at Baseline
+  BirthNotAsiaMENA = ifelse((as.character(BirthPlaceBaseline) == "Asie (hors MENA)" |  as.character(BirthPlaceBaseline) == "MENA (Maghreb +Arabie saoudite, etc.)"), "AsiaOrMENA", "NotAsiaNorMENA"),
+  BirthNotAsiaMENA = as.factor(BirthNotAsiaMENA),  # Dummy: the mothers is not born in Asia nor in MENA
+  BirthNotAsiaMENA1or0 = as.factor(BirthNotAsiaMENA1or0), # Turn it into 0, 1
+  BirthPlace3 = as.factor(BirthPlace3), # Turn the 3 level variabble into a factor
+  ECSIdealAgeEntry6Baseline = as.factor(ECSIdealAgeEntry6),  # Do the same for the ideal entry age in early childcare
+  ECSIdealAgeEntryBaseline = factor(ECSIdealAgeEntryBaseline, 
+                            levels = c(  "Jamais", "Pendant ses trois premiers mois", "Pendant ses six premiers mois", "Pendant ses neuf premiers mois", "Pendant la première année", "Ne sait pas", "Jusqu’à l’entrée à la maternelle" ) , ordered = TRUE),  # Relevel the full variable: ideal entry age in early childcare
+  ECSIdealAgeEntryEndline = factor(ECSIdealAgeEntryEndline, 
+                            levels = c(  "Jamais", "Pendant ses trois premiers mois", "Pendant ses six premiers mois", "Pendant ses neuf premiers mois", "Pendant la première année", "Ne sait pas", "Jusqu’à l’entrée à la maternelle" ) , ordered = TRUE), # Relevel the full variable: ideal entry age in early childcare
+  AccessInformalFullTimeBaseline = as.factor(AccessInformalFullTime), # The mother can access informal care as much as needed at Basline
+  AccessInformalCareFulltime1or0Baseline = ifelse(as.character(AccessInformalFullTime) == "Yes", 1, 0), # Into 1 and 0
+  AccessInformalCareYNBaseline = as.factor(AccessInformalCareYN), # Dummy: the mother can access informal care (regardless of the intensity)
+  SmokePreg = factor(SmokePreg, levels = c("Continued Smoking","Reduced Smoking", "Stopped Smoking" , "Did Not Smoke"), ordered = TRUE),  # Smoking behavior during pregnancy 
+  OccupationEndline = ifelse( WorkMother %in% c("Autre", # Recode occupation  of the mother: merge small categories 
+                  "Retraité, préretraite, en pension d’invalidité etc."),"Autre",as.character(WorkMother)),
+OccupationEndline = case_when( 
+    (WorkMother_10_TEXT =="Rupture conventionnelle/en formation" | WorkMother_10_TEXT =="Congé maladie" | WorkMother_10_TEXT =="Arrêt longue maladie" | WorkMother_10_TEXT =="Arrêt maladie"|  WorkMother_10_TEXT =="Indépendente (il ont rompu le contrat sans raison sans justification : elle pense que c'est lié à sa situation de jeune maman)  En préavis elle cherche un nouveau travail"| WorkMother_10_TEXT =="arrêt maladie"| WorkMother_10_TEXT =="Arrêt maladie longue durée"| WorkMother_10_TEXT =="Congé maternité pour un second enfant"| WorkMother_10_TEXT =="Arrêt maladie après congé mat"| WorkMother_10_TEXT =="congés longue durée lié à pathologie"| WorkMother_10_TEXT =="Congé payé" | WorkMother_10_TEXT =="En arrêt maladie"| WorkMother_10_TEXT =="congé maternité"| WorkMother_10_TEXT =="Congé maternité + 90 jours congé demi payé + 30jours congé payé"| WorkMother_10_TEXT =="Aurait du travailler mais part à l'étranger"| WorkMother_10_TEXT =="en congé maladie, ne peut pas travailler pour des raisons de santé"| WorkMother_10_TEXT =="congé parce qu'enfant malade"| WorkMother_10_TEXT =="Arrêt maladie mais reprend le 30/10/2023"| WorkMother_10_TEXT =="congés mais pas parental"| WorkMother_10_TEXT =="Congé payé"| WorkMother_10_TEXT =="Aurait du travailler mais part à l'étranger"| WorkMother_10_TEXT =="Congé à cause de la pathologie de son fils"| WorkMother_10_TEXT =="ARRËT MALADIE"| WorkMother_10_TEXT =="maladie depuis la fin de son congé maternité"| WorkMother_10_TEXT =="En vacances, le contrat se termine 08/12/2023"| WorkMother_10_TEXT =="Occupe un emploi un emploi mais en congé d'allaitement, reprend en novembre"| WorkMother_10_TEXT =="Salarié en arrêt maladie, à la recherche d'un autre emploi") ~"Occupe un emploi / travaille",
+                           (WorkMother_10_TEXT=="En attente de régularisation" | WorkMother_10_TEXT == "papiers"| WorkMother_10_TEXT == "En rupture conventionnelle, n'a pas repris depuis la naissance de l'enfant"| WorkMother_10_TEXT == "En attente de régularisation"| WorkMother_10_TEXT == "papiers") ~"Au chômage / en recherche active d’emploi (inscrit pôle emploi ou pas)",
+                           (WorkMother_10_TEXT=="En train de faire sa thèse mais sans contrat de travail" | WorkMother == "Apprenti(e) sous contrat ou en stage rémunéré")~"Etudiant, stagiaire non rémunéré, formation", # 2. and missing values
+    .default = as.character(OccupationEndline)), 
+ECSUseYes = as.numeric(ECSUse == "Oui"),  # Variable that takes the value 1 if the family had already use  early childcare at Baseline
+  ECSNoECSAppYes = as.numeric(ECSNoECSApp == "Oui"), # Value that takes the value 1 if parents don't have an ECS (early childcare) place but have applied for it at Endline
+  ECSApp = ifelse((ECSUseYes == 1 | ECSNoECSAppYes == 1), 1, 0), # Create ECSApp, a variable that takes the value 1 if parents have applied to ECS FOR Endline (which include both those who have a place and those who don't but applied)
+  ActiveMotherEndline = ifelse( (WorkMother == "Etudiant, stagiaire non rémunéré, formation" | WorkMother == "Occupe un emploi / travaille" | WorkMother == "Apprenti(e) sous contrat ou en stage rémunéré" ), 1, 0),  # Dummy that takes a 1 if the mother is active at Endline
+  ActiveMotherEndline = as.numeric(ActiveMotherEndline), # Turns this dummy into numerics
+  ActiveMotherEndlineYesNo = as.factor(ifelse( (WorkMother == "Etudiant, stagiaire non rémunéré, formation" | WorkMother == "Occupe un emploi / travaille" | WorkMother == "Apprenti(e) sous contrat ou en stage rémunéré" ), "Yes", "No")), # Dummy that takes the value Yes if the mother is active at Endline, and No otherwise
+  WorkMotherFullTime = as.numeric(WorkMotherIntensity == "Temps plein (> 85% soit 30h/semaine)")
+) %>% # Dummy that takes the value 1 if the mother works full time at Endline
+ # mutate_at(vars(ECS_Type, ECS_Known_Y, ECS_Known_N),~ifelse(.=="Aucun autre"|.=="Aucun",NA,.)) %>% 
+  mutate_at(vars(ECSType, ECSIdealType, ECSKnown, ECS2Type, ECSAppType, ECSPlanToType, ECSBroSisAppType, ECSBrosisType),~str_replace_all(.,"Je ne souhaite pas répondre","Je ne sais pas encore")) %>% # merge "je ne souhaite pas répondre" with "je ne sais pas encore" for these variables (too few ppl didn't answer) 
+    mutate_at(vars(ECSTwinsType),~str_replace_all(.,"Click to write Choice 19","Crèche hospitalière")) %>% # Qualtrics miscoded some variables: in the next few lines we fix this bug
+      mutate_at(vars(ECSTwinsType),~str_replace_all(.,"Click to write Choice 21","Crèche parentale")) %>%
+        mutate_at(vars(ECSTwinsType),~str_replace_all(.,"Click to write Choice 20","Crèche familiale")) %>%
+          mutate_at(vars(ECSTwinsType),~str_replace_all(.,"Click to write Choice 22","Micro-crèche privée")) %>%
+      mutate_at(vars(ECSType, ECS2Type, ECSAppType),~str_replace_all(.,"Click to write Choice 15","Crèche hospitalière")) %>%
+      mutate_at(vars(ECSType, ECS2Type, ECSAppType),~str_replace_all(.,"Click to write Choice 17","Crèche parentale")) %>%
+        mutate_at(vars(ECSType, ECS2Type, ECSAppType),~str_replace_all(.,"Click to write Choice 16","Crèche familiale")) %>%
+          mutate_at(vars(ECSType, ECS2Type, ECSAppType),~str_replace_all(.,"Click to write Choice 18","Micro-crèche privée")) %>%
+        mutate_at(vars(ECSBrosisType),~str_replace_all(.,"Click to write Choice 17","Le même que celui utilisé pour l'autre enfant")) %>%
+      mutate_at(vars(ECSBrosisType),~str_replace_all(.,"Click to write Choice 19","Crèche parentale")) %>%
+        mutate_at(vars(ECSBrosisType),~str_replace_all(.,"Click to write Choice 18","Crèche familiale")) %>%
+          mutate_at(vars(ECSBrosisType),~str_replace_all(.,"Click to write Choice 20","Micro-crèche privée")) %>%
+            mutate_at(vars(ECSBrosisType),~str_replace_all(.,"Click to write Choice 16","Toute petite section")) %>%
+          mutate_at(vars(ECSPlanToType),~str_replace_all(.,"Click to write Choice 17","Crèche hospitalière")) %>%
+      mutate_at(vars(ECSPlanToType),~str_replace_all(.,"Click to write Choice 18","Crèche parentale")) %>%
+        mutate_at(vars(ECSPlanToType),~str_replace_all(.,"Click to write Choice 19","Crèche familiale")) %>%
+          mutate_at(vars(ECSPlanToType),~str_replace_all(.,"Click to write Choice 20","Micro-crèche privée")) %>%
+            mutate_at(vars(ECSPlanToType),~str_replace_all(.,"Click to write Choice 21","Toute petite section")) %>%
+          mutate_at(vars(ECSIdealType),~str_replace_all(.,"Click to write Choice 17","Crèche hospitalière")) %>%
+      mutate_at(vars(ECSIdealType),~str_replace_all(.,"Click to write Choice 19","Crèche parentale")) %>%
+        mutate_at(vars(ECSIdealType),~str_replace_all(.,"Click to write Choice 18","Crèche familiale")) %>%
+          mutate_at(vars(ECSIdealType),~str_replace_all(.,"Click to write Choice 20","Micro-crèche privée")) %>%
+            mutate_at(vars(ECSBroSisAppType),~str_replace_all(.,"Click to write Choice 17","Le même que celui utilisé pour l'autre enfant")) %>%
+      mutate_at(vars(ECSBroSisAppType),~str_replace_all(.,"Click to write Choice 18","Crèche parentale")) %>%
+        mutate_at(vars(ECSBroSisAppType),~str_replace_all(.,"Click to write Choice 20","Crèche familiale")) %>%
+          mutate_at(vars(ECSBroSisAppType),~str_replace_all(.,"Click to write Choice 19","Micro-crèche privée")) %>%
+            mutate_at(vars(ECSBroSisAppType),~str_replace_all(.,"Click to write Choice 16","Toute petite section")) %>%
+          mutate_at(vars(ECSKnown),~str_replace_all(.,"Click to write Choice 18","Crèche hospitalière")) %>%
+      mutate_at(vars(ECSKnown),~str_replace_all(.,"Click to write Choice 17","Crèche parentale")) %>%
+        mutate_at(vars(ECSKnown),~str_replace_all(.,"Click to write Choice 16","Crèche familiale")) %>%
+          mutate_at(vars(ECSKnown),~str_replace_all(.,"Click to write Choice 15","Micro-crèche privée")) %>% # Now that this painful task is over, we recode the ECS type used at Endline in fewer categories
+  mutate( ECSType6Endline=fct_collapse(as.factor(ECSType), 
+                                "Crèches Publiques" = c("Crèche départementale",      
+                                                         "Crèches municipales (ou juste «crèches »)", 
+                                                         "Crèche familiale", 
+                                                         "Crèche hospitalière" ), 
+                                "Crèches Privées" = c("Crèche privée", "Micro-crèche privée"), 
+                                "Crèches Asso" = c("Crèches associatives", "Crèche parentale", "Autres types de crèches"), 
+                                "Haltes garderies" = "Haltes garderies", 
+                                             Nounou = c("Nounou à domicile", "Garde partagée"), 
+                                "Assistantes maternelles" = c("Assistantes maternelles", "MAM (Maison d'Assistantes Maternelles)"), 
+                                "Autre" = "Autre"), 
+          ECSIdeal7Endline=fct_collapse(as.factor(ECSIdealType), # Do the same for the ideal type of ECS parents would have like to use if they are not satisfied
+                                "Crèches Publiques" = c("Crèche départementale",      
+                                                         "Crèches municipales (ou juste «crèches »)", 
+                                                         "Crèche familiale", 
+                                                         "Crèche hospitalière" ), 
+                                "Crèches Privées" = c("Crèche privée", "Micro-crèche privée"), 
+                                "Crèches Asso" = c("Crèches associatives", "Crèche parentale"), 
+                                "Haltes garderies" = "Haltes garderies", 
+                                             Nounou = "Nounou à domicile", 
+                                "Assistantes maternelles" = c("Assistantes maternelles", "MAM (Maison d'Assistantes Maternelles)"), 
+                                "Autre" = "Autre", 
+                                "Garde informelle" = c("Grands-parents ou autre membre de la famille", 
+                                                       NSP = "Je ne sais pas encore")), 
+            ECSIdealYes = ifelse( ECSIdeal == "Non, c’était mon mode de garde préféré.", 1, 0),
+           ECSIdealNo = ifelse( ECSIdeal == "Non, c’était mon mode de garde préféré.", 0, 1),
+          BabyFemale = as.factor(SEX1 == "Fille")
+          )
+
+## Manipulate the number and types of ECS Known in order to do stats on the information level
+
+# Recode ECS related variables
+
+ECS_df <- RCT_tot %>% select(ResponseId,ECSType, ECSTwinsType, ECSIdealType, ECSKnown, ECS2Type, ECSAppType, ECSPlanToType, ECSBroSisAppType, ECSBrosisType) %>% 
+#  mutate_at(vars(ECS_Type, ECS_Known_Y, ECS_Known_N),~str_replace_all(.,"Autres types de crèches","Autre")) %>%
+#mutate(ECSKnown=paste(ECS_Known_Y, ECS_Known_N,sep=",")) %>% 
+# separate_longer_delim(ECSIdealType, delim = ",") %>%               ## ATTEMPT TO Split ECS: Weird results for ECSIdealType, ECSKnown, ECS2Type, ECSAppType, ECSPlanToType, ECSBroSisAppType, ECSBrosisType
+# separate_longer_delim(ECSKnown, delim = ",") %>%
+# separate_longer_delim(ECSAppType, delim = ",") %>%
+# separate_longer_delim(ECSPlanToType, delim = ",") %>%
+# separate_longer_delim(ECSBroSisAppType, delim = ",") %>%
+# separate_longer_delim(ECSBrosisType, delim = ",") %>% #  separate the elements in long format?????
+# mutate(ECSKnown=str_remove_all(ECSKnown,"NA,|,NA|NA")) %>% 
+#  filter(ECSKnown!="") %>%  #remove NA and if the known element is the one they intend to use.
+  mutate(KnowsCrechePubEndline  = (
+      str_detect(ECSType, "Crèches") & 
+      (str_detect(ECSType, "municipale") ==TRUE  | str_detect(ECSType, "départementale") ==TRUE ) |
+      str_detect(ECSKnown, "Crèches") & 
+      (str_detect(ECSKnown, "municipale") ==TRUE  | str_detect(ECSKnown, "départementale") ==TRUE ) |
+      str_detect(ECSIdealType, "Crèches") & 
+      (str_detect(ECSIdealType, "municipale") ==TRUE  | str_detect(ECSIdealType, "départementale") ==TRUE ) |
+      str_detect(ECS2Type, "Crèches") & 
+      (str_detect(ECS2Type, "municipale") ==TRUE  | str_detect(ECS2Type, "départementale") ==TRUE ) |
+      str_detect(ECSAppType, "Crèches") & 
+      (str_detect(ECSAppType, "municipale") ==TRUE  | str_detect(ECSAppType, "départementale") ==TRUE ) |
+      str_detect(ECSBroSisAppType, "Crèches") & 
+      (str_detect(ECSBroSisAppType, "municipale") ==TRUE  | str_detect(ECSBroSisAppType, "départementale") ==TRUE ) |
+              str_detect(ECSPlanToType, "Crèches") & 
+      (str_detect(ECSPlanToType, "municipale") ==TRUE  | str_detect(ECSPlanToType, "départementale") ==TRUE ) | str_detect(ECSBrosisType, "Crèches") & 
+      (str_detect(ECSBrosisType, "municipale") ==TRUE  | str_detect(ECSBrosisType, "départementale") ==TRUE ) 
+    ),# variable that takes the value one if the mothers know public daycare
+    KnowsCrecheEndline =str_detect(ECSType,"Crèches")|
+           str_detect(ECSKnown,"Crèches")|
+           str_detect(ECSIdealType,"Crèches")|
+           str_detect(ECS2Type,"Crèches")|
+           str_detect(ECSAppType,"Crèches")|
+           str_detect(ECSPlanToType,"Crèches")|
+           str_detect(ECSBroSisAppType,"Crèches")|
+           str_detect(ECSBrosisType,"Crèches"), #Asked or know any daycare
+         KnowsCrecheAEndline  =str_detect(ECSType,"associatives")|
+           str_detect(ECSKnown,"associatives")|
+           str_detect(ECSIdealType,"associatives")|
+           str_detect(ECS2Type,"associatives")|
+           str_detect(ECSAppType,"associatives")|
+           str_detect(ECSPlanToType,"associatives")|
+           str_detect(ECSBroSisAppType,"associatives")|
+           str_detect(ECSBrosisType,"associatives"), #Takes the value 1 if knows associative daycar 
+         KnowsAssMatEndline   =str_detect(ECSType,"Assistantes")|
+        str_detect(ECSKnown,"Assistantes")|
+        str_detect(ECSIdealType,"Assistantes")|
+        str_detect(ECSKnown,"Assistantes")|
+                     str_detect(ECS2Type,"Assistantes")|
+                     str_detect(ECSAppType,"Assistantes")|
+                     str_detect(ECSPlanToType,"Assistantes")|
+                     str_detect(ECSBroSisAppType,"Assistantes")|
+                     str_detect(ECSBrosisType,"Assistantes"), # Asked or know assistantes maternelles (private childminders)
+         KnowsJEEndline  =str_detect(ECSType,"Jardin d’enfant")|
+           str_detect(ECSKnown,"Jardin d’enfant")|
+           str_detect(ECSIdealType,"Jardin d’enfant")|
+           str_detect(ECSKnown,"Jardin d’enfant")|
+                        str_detect(ECS2Type,"Jardin d’enfant")|
+                        str_detect(ECSAppType,"Jardin d’enfant")|
+                        str_detect(ECSPlanToType,"Jardin d’enfant")|
+                        str_detect(ECSBroSisAppType,"Jardin d’enfant")|
+                        str_detect(ECSBrosisType,"Jardin d’enfant"),  # Asked or knows jardin d'enfant 
+              KnowsAutreEndline  = str_detect(ECSType, "Autre") |
+                  str_detect(ECSKnown, "Autre") |
+                  str_detect(ECSIdealType, "Autre") |
+                  str_detect(ECSKnown, "Autre") |
+                  str_detect(ECS2Type, "Autre") |
+                  str_detect(ECSAppType, "Autre") |
+                  str_detect(ECSPlanToType, "Autre") |
+                  str_detect(ECSBroSisAppType, "Autre") |
+                  str_detect(ECSBrosisType, "Autre"),
+    KnowsPartageEndline  = str_detect(ECSType, "partagée") |
+                     str_detect(ECSKnown, "partagée") |
+                     str_detect(ECSIdealType, "partagée") |
+                     str_detect(ECSKnown, "partagée") |
+                     str_detect(ECS2Type, "partagée") |
+                     str_detect(ECSAppType, "partagée") |
+                     str_detect(ECSPlanToType, "partagée") |
+                     str_detect(ECSBroSisAppType, "partagée") |
+                     str_detect(ECSBrosisType, "partagée"), #Takes the value 1 if knows shared nannies
+    KnowsHGEndline  = str_detect(ECSType, "Haltes garderies") |
+                 str_detect(ECSKnown, "Haltes garderies") |
+                 str_detect(ECSIdealType, "Haltes garderies") |
+                 str_detect(ECSKnown, "Haltes garderies") |
+                 str_detect(ECS2Type, "Haltes garderies") |
+                 str_detect(ECSAppType, "Haltes garderies") |
+                 str_detect(ECSPlanToType, "Haltes garderies") |
+                 str_detect(ECSBroSisAppType, "Haltes garderies") |
+                 str_detect(ECSBrosisType, "Haltes garderies"), #Takes the value 1 if knows part time daycare
+    KnowsNounouEndline  = str_detect(ECSType, "Nounou") |
+                   str_detect(ECSKnown, "Nounou") |
+                   str_detect(ECSIdealType, "Nounou") |
+                   str_detect(ECSKnown, "Nounou") |
+                   str_detect(ECS2Type, "Nounou") |
+                   str_detect(ECSAppType, "Nounou") |
+                   str_detect(ECSPlanToType, "Nounou") |
+                   str_detect(ECSBroSisAppType, "Nounou") |
+                   str_detect(ECSBrosisType, "Nounou"), #Takes the value 1 if knows nannies
+    KnowsHospEndline  = str_detect(ECSType, "hospitalière") |
+                   str_detect(ECSKnown, "hospitalière") |
+                   str_detect(ECSIdealType, "hospitalière") |
+                   str_detect(ECSKnown, "hospitalière") |
+                   str_detect(ECS2Type, "hospitalière") |
+                   str_detect(ECSAppType, "hospitalière") |
+                   str_detect(ECSPlanToType, "hospitalière") |
+                   str_detect(ECSBroSisAppType, "hospitalière") |
+                   str_detect(ECSBrosisType, "hospitalière"), #Takes the value 1 if knows hospital daycare 
+    KnowsFamilialeEndline  = str_detect(ECSType, "Familiale") |
+                   str_detect(ECSKnown, "Familiale") |
+                   str_detect(ECSIdealType, "Familiale") |
+                   str_detect(ECSKnown, "Familiale") |
+                   str_detect(ECS2Type, "Familiale") |
+                   str_detect(ECSAppType, "Familiale") |
+                   str_detect(ECSPlanToType, "Familiale") |
+                   str_detect(ECSBroSisAppType, "Familiale") |
+                   str_detect(ECSBrosisType, "Familiale"), #Takes the value 1 if knows familial daycare 
+    KnowsParentaleEndline  = str_detect(ECSType, "parentale") |
+                   str_detect(ECSKnown, "parentale") |
+                   str_detect(ECSIdealType, "parentale") |
+                   str_detect(ECSKnown, "parentale") |
+                   str_detect(ECS2Type, "parentale") |
+                   str_detect(ECSAppType, "parentale") |
+                   str_detect(ECSPlanToType, "parentale") |
+                   str_detect(ECSBroSisAppType, "parentale") |
+                   str_detect(ECSBrosisType, "parentale"), #Takes the value 1 if knows parental daycare 
+    KnowsPrivéeEndline  = str_detect(ECSType, "privée") |
+                   str_detect(ECSKnown, "privée") |
+                   str_detect(ECSIdealType, "privée") |
+                   str_detect(ECSKnown, "privée") |
+                   str_detect(ECS2Type, "privée") |
+                   str_detect(ECSAppType, "privée") |
+                   str_detect(ECSPlanToType, "privée") |
+                   str_detect(ECSBroSisAppType, "privée") |
+                   str_detect(ECSBrosisType, "privée"), #Takes the value 1 if knows private daycare 
+    KnowsMicroCrecheEndline  = str_detect(ECSType, "Micro-crèche") |
+                   str_detect(ECSKnown, "Micro-crèche") |
+                   str_detect(ECSIdealType, "Micro-crèche") |
+                   str_detect(ECSKnown, "Micro-crèche") |
+                   str_detect(ECS2Type, "Micro-crèche") |
+                   str_detect(ECSAppType, "Micro-crèche") |
+                   str_detect(ECSPlanToType, "Micro-crèche") |
+                   str_detect(ECSBroSisAppType, "Micro-crèche") |
+                   str_detect(ECSBrosisType, "Micro-crèche"), #Takes the value 1 if knows micro (private) daycare 
+    KnowsMAMEndline  = str_detect(ECSType, "MAM") |
+                   str_detect(ECSKnown, "MAM") |
+                   str_detect(ECSIdealType, "MAM") |
+                   str_detect(ECSKnown, "MAM") |
+                   str_detect(ECS2Type, "MAM") |
+                   str_detect(ECSAppType, "MAM") |
+                   str_detect(ECSPlanToType, "MAM") |
+                   str_detect(ECSBroSisAppType, "MAM") |
+                   str_detect(ECSBrosisType, "MAM"), #Takes the value 1 if knows MAM
+    KnowsTPEEndline  = str_detect(ECSType, "section") |
+                   str_detect(ECSKnown, "section") |
+                   str_detect(ECSIdealType, "section") |
+                   str_detect(ECSKnown, "section") |
+                   str_detect(ECS2Type, "section") |
+                   str_detect(ECSAppType, "section") |
+                   str_detect(ECSPlanToType, "section") |
+                   str_detect(ECSBroSisAppType, "section") |
+                   str_detect(ECSBrosisType, "section"), #Takes the value 1 if knows prekindergarden
+         KnowsNothingEndline   =(is.na(ECSType) | ECSType == "Je ne sais pas encore") & 
+                           (is.na(ECSIdealType) | ECSIdealType == "Je ne sais pas encore") &
+                           (is.na(ECSKnown) | ECSKnown == "Je ne sais pas encore") &
+                           (is.na(ECSAppType) | ECSAppType == "Je ne sais pas encore") &
+                           (is.na(ECSPlanToType) | ECSPlanToType == "Je ne sais pas encore") &
+                           (is.na(ECSBrosisType) | ECSBrosisType == "Je ne sais pas encore") &
+                           (is.na(ECSBroSisAppType) | ECSBroSisAppType == "Je ne sais pas encore"), #Takes the value 1 if knows nothing
+         UseCreche = str_detect(ECSType,"Crèches")|
+           str_detect(ECS2Type,"Crèches"), #Uses any crèche
+         UseCrecheA  =str_detect(ECSType,"associatives")|
+           str_detect(ECS2Type,"associatives"), #Takes the value 1 if uses associative daycare 
+         UseAssMat   =str_detect(ECSType,"Assistantes")|
+                      str_detect(ECS2Type,"Assistantes"), #Takes the value 1 if uses private childminders 
+         UseJE =str_detect(ECSType,"Jardin d’enfant")|
+                        str_detect(ECS2Type,"Jardin d’enfant"), #Takes the value 1 if uses jardin d'enfant
+   UseAutre = str_detect(ECSType, "Autre") |
+                 str_detect(ECS2Type, "Autre"), #Takes the value 1 if uses sthg else
+    UsePartage = str_detect(ECSType, "partagée") |
+                   str_detect(ECS2Type, "partagée"), #Takes the value 1 if uses shared nannies
+    UseHG = str_detect(ECSType, "Haltes garderies") |
+                str_detect(ECS2Type, "Haltes garderies"),#Takes the value 1 if uses part time daycare
+    UseNounou = str_detect(ECSType, "Nounou") |
+                  str_detect(ECS2Type, "Nounou"), #Takes the value 1 if uses nannies
+    UseHosp = str_detect(ECSType, "hospitalière") |
+                  str_detect(ECS2Type, "hospitalière"), #Takes the value 1 if uses hospital daycare 
+    UseFamiliale = str_detect(ECSType, "Familiale") | 
+                      str_detect(ECS2Type, "Familiale"), #Takes the value 1 if uses familial daycare
+    UseParentale = str_detect(ECSType, "parentale") |
+                      str_detect(ECS2Type, "parentale"),  #Takes the value 1 if uses parental daycare
+    UsePrivée = str_detect(ECSType, "privée") |
+                    str_detect(ECS2Type, "privée"),  #Takes the value 1 if uses private daycare
+    UseMicroCreche = str_detect(ECSType, "Micro-crèche") |
+                         str_detect(ECS2Type, "Micro-crèche"), #Takes the value 1 if uses micro daycare
+    UseMAM = str_detect(ECSType, "MAM") |
+                 str_detect(ECS2Type, "MAM"),  #Takes the value 1 if uses MAM
+       UseCrecheBrosis = str_detect(ECSBrosisType,"Crèches"), #Uses any crèche for siblings
+         UseCrecheABrosis  = str_detect(ECSBrosisType,"associatives")| 
+           str_detect(ECSBrosisType,"associatives"),#Uses associative daycare for siblings
+         UseAssMatBrosis   =str_detect(ECSType,"Assistantes")|
+                      str_detect(ECSBrosisType,"Assistantes"),  #Uses private childminders for siblings
+         UseJEBrosis =str_detect(ECSType,"Jardin d’enfant")|
+                        str_detect(ECSBrosisType,"Jardin d’enfant"), #Uses jardin d'enfant for siblings
+ UseAutreBrosis = str_detect(ECSBrosisType, "Autre"), #Uses other care for siblings
+    UsePartageBrosis = str_detect(ECSBrosisType, "partagée"), #Uses shared nannies for siblings
+    UseHGBrosis = str_detect(ECSBrosisType, "Haltes garderies"), #Uses part time daycare for siblings
+    UseNounouBrosis = str_detect(ECSBrosisType, "Nounou"), #Uses nannies for siblings
+    UseHospBrosis = str_detect(ECSBrosisType, "hospitalière"), #Uses hospital daycare for siblings
+    UseFamilialeBrosis = str_detect(ECSBrosisType, "Familiale"), #Uses familial daycare for siblings
+    UseParentaleBrosis = str_detect(ECSBrosisType, "parentale"),#Uses parental daycare for siblings
+    UsePrivéeBrosis = str_detect(ECSBrosisType, "privée"), #Uses private daycare for siblings
+    UseMicroCrecheBrosis = str_detect(ECSBrosisType, "Micro-crèche"), #Uses micro daycare for siblings
+    UseMAMBrosis = str_detect(ECSBrosisType, "MAM"), #Uses MAM for siblings
+    UseTPEBrosis = str_detect(ECSBrosisType, "section"), # Asked or know assistantes maternelles (private childminders)
+         WantCrecheEndline    =str_detect(ECSPlanToType,"Crèches"), # Want crèches (daycare)
+         WantCrecheAEndline   =str_detect(ECSPlanToType,"associatives"),  # Want associative daycare
+         WantAssMatEndline    =str_detect(ECSPlanToType,"Assistantes"),  # Want private childminders
+         WantJEEndline        =str_detect(ECSPlanToType,"Jardin "),  ###### ERROR
+         WantAutreEndline     =str_detect(ECSPlanToType,"Autre|Jardin d’enfant"), # Want other type of care
+         WantPartageEndline   =str_detect(ECSPlanToType,"partagée"), # Want shared nanny
+         WantHGEndline        =str_detect(ECSPlanToType,"Haltes garderies"), # Want drop-in daycae
+         WantNounouEndline    =str_detect(ECSPlanToType,"Nounou"),  # Want nanny
+         WantKnowNotYetEndline    =str_detect(ECSPlanToType,"Je ne sais pas encore"), 
+         IdealCrecheEndline        =str_detect(ECSIdealType,"Crèches"), # Want crèches (daycare)
+         IdealCrecheAEndline       =str_detect(ECSIdealType,"associatives"),  # Want associative daycare
+         IdealAssMatEndline        =str_detect(ECSIdealType,"Assistantes"),  # Want private childminders
+         IdealJEEndline            =str_detect(ECSIdealType,"Jardin "),  ###### 
+         IdealAutreEndline         =str_detect(ECSIdealType,"Autre|Jardin d’enfant"), # Want other type of care
+         IdealPartageEndline       =str_detect(ECSIdealType,"partagée"), # Want shared nanny
+         IdealHGEndline            =str_detect(ECSIdealType,"Haltes garderies"), # Want drop-in daycae
+         IdealNounouEndline        =str_detect(ECSIdealType,"Nounou"),  # Want nanny
+         IdealKnowNotYetEndline    =str_detect(ECSIdealType,"Je ne sais pas encore")) %>%  # ideal don't know yet
+   mutate_at(vars(KnowsCrechePubEndline :IdealKnowNotYetEndline ),~ifelse(is.na(.),FALSE,.)) %>%  # deal with NAs
+  group_by(ResponseId) %>% 
+  summarise_at(vars(KnowsCrechePubEndline :IdealKnowNotYetEndline ),~ifelse(sum(.)>=1,1,0)) %>% 
+  mutate(KnowsCrecheOnlyEndline =(KnowsCrecheEndline ==1|KnowsCrecheAEndline ==1 |KnowsHospEndline  ==1 |KnowsFamilialeEndline  ==1 |KnowsParentaleEndline  ==1 ) &    # Knows only daycare
+           (KnowsAssMatEndline  +
+            KnowsJEEndline      +
+            KnowsAutreEndline   +
+            KnowsPartageEndline +
+            KnowsHGEndline      +
+            KnowsNounouEndline  +
+            KnowsPrivéeEndline  +
+            KnowsMicroCrecheEndline  +
+            KnowsMAMEndline  +
+            KnowsTPEEndline 
+            )==0,
+         KnownNbTypeECSEndline =KnowsCrecheAEndline   +
+                        KnowsCrechePubEndline +
+                        KnowsHospEndline      +
+                        KnowsFamilialeEndline +
+                        KnowsParentaleEndline +
+                        KnowsPrivéeEndline    +
+                        KnowsMicroCrecheEndline  +
+                        KnowsAssMatEndline    +
+                        KnowsJEEndline        +
+                        KnowsAutreEndline     +
+                        KnowsPartageEndline   +
+                        KnowsHGEndline        +
+                        KnowsMAMEndline       +
+                        KnowsNounouEndline  , #  Number of ECS known. NOTE I don't include TPE because it was not ask for all, just for kids between 1 and 3 # 
+         Knows0r1ECSEndline =KnownNbTypeECSEndline <=1 # Knows nothing or only 1
+                        )
+
+# Put all this data back into the main database
+RCT_tot <- RCT_tot %>% left_join(.,ECS_df) %>% 
+  mutate(ZipcodeEndline = ifelse(is.na(MovedZipcode_1_TEXT), 
+                                 as.character(CodePostalBaseline),  
+                                 as.character(MovedZipcode_1_TEXT)) # Create a variable Zipcode Endline that aggregate the initial Zipcode and the new Zipcode at endline if the family moved out
+         )
+
+
+# Remove all the participants that have to be excluded: remove dead babies and undocumented families
+RCT = RCT_tot %>% 
+    filter((Start == "Oui, je réponds maintenant" | Start == "Non, mais je veux bien répondre au questionnaire plus tard")  & BabyOk != "Bébé décédé" ) %>% 
+  filter((CAFNoWhy != "Je n'ai pas de papier") %>% replace_na(TRUE))
+
+
+# Import info on the compliers to administrative support admin data
+
+# Import the admin database
+admin_unique <- read.csv("G:/Mon Drive/Intervention/Arthur/Endline/Data/admin_unique.csv", comment.char="#")
+
+admin_unique$Numéro <- as.character(admin_unique$Numéro)
+
+# Identify columns from admin_unique not present in RCT
+columns_to_import <- setdiff(names(admin_unique), names(RCT))
+
+# Import only the columns from admin_unique that are not already present in RCT
+RCT <- RCT %>%
+  left_join(select(admin_unique, all_of(columns_to_import)), by = c("PhoneMotherEndline" = "Numéro")) %>%
+  mutate(Suivi_administratif = ifelse(Suivi_administratif == "No" | is.na(Suivi_administratif), "No", "Yes"),
+         Suivi_administratif = as.factor(Suivi_administratif), 
+         Suivi_administratif1_0 = ifelse(Suivi_administratif == "No", 0, 1)) 
+# Remove ECS_df from the workspace
+rm(ECS_df)
+
+```
+
+
+```{r spatialDB, include = FALSE}
+## In this chunk we augment RCT with spatial data about the ECS coverage rate at endline, spatial coordinates, and the number of participants per city at Endline
+
+##BONJOUR !!!
+
+
+#### STEP 1           #### 
+#### Data preparation #### 
+
+
+##### Get our db ready by loading some batabase that contains interesting variables
+
+# ECS coverage rate
+#### Source http://data.caf.fr/dataset/f6411f07-10bf-4f13-b4fb-8d30ba9328b5/resource/44cdd055-fbfa-444b-ae33-f4d47d8e8638/download/TAUXCOU2019.csv
+#coverage <- read_csv2("../Data/Population-ECEC_coverage/TAUXCOU2019(1).csv") %>% filter(row_number()!=1) %>% 
+#  mutate(across(c(TAUXCOUV_COM:TAUXCOUV_NAT),~as.numeric(gsub(",", ".", gsub("\\.", "",.x)))))
+
+# Updated with 2021 data
+coverage <- read_csv2("../Endline/Data/Spatial data/Taux-de-couverture-global-2021.csv") 
+
+### Source : https://www.insee.fr/fr/statistiques/6011070?sommaire=6011075
+pop <- read_csv2("../Data/Population-ECEC_coverage/donnees_communes.csv") %>% mutate(NUMCOM=paste(CODDEP,CODCOM,sep=""))
+
+### Source : https://www.data.gouv.fr/en/datasets/base-officielle-des-codes-postaux/#resources
+post <- read_csv2("../Data/Population-ECEC_coverage/laposte_hexasmal(1).csv") %>% rename(NUMCOM=Code_commune_INSEE)
+
+## Import cities latitude and longitude https://www.data.gouv.fr/en/datasets/villes-de-france/
+latlong <- read.csv("../Endline/Data/Spatial data/cities.csv", sep = ",") %>% rename(NUMCOM = insee_code) %>% select(NUMCOM, zip_code, latitude, longitude)
+
+
+#### Put the database together
+# The first ones
+Demographics <- left_join(pop,post) %>% select(NUMCOM,COM,CODDEP,CODREG,REG,PTOT,Code_postal) %>% left_join(.,coverage) %>% select(-c(NOMCOM:NOMDEP)) %>% 
+  filter(REG=="Île-de-France") %>% mutate(HighLowECEC=ifelse((as.numeric(tauxcouv_com)-as.numeric(tauxcouv_dep))>0,"High ECEC covering", "Low ECEC covering"))
+
+# Add latitude and longitude
+Demographics <- left_join(Demographics, latlong, by = "NUMCOM")
+
+
+
+# Put this info in the main dataframe
+RCT <-  RCT %>% left_join(.,Demographics ,by=c("ZipcodeEndline"="Code_postal"), suffix = c("Baseline", "Endline")) %>% 
+  filter(!duplicated(ResponseId))# the merging creates duplicates, to remove
+
+# Record the number of participants living in the city where each participant live at endline
+RCT <- RCT %>% 
+  group_by(ZipcodeEndline) %>% 
+  mutate(nbr_city_endline = n()) %>% ungroup()
+
+# Record the number of participants living in the city where each participant live at baseline
+RCT <- RCT %>% 
+  group_by(CodePostalBaseline) %>% 
+  mutate(nbr_city_baseline = n()) %>% ungroup()
+
+rm(pop, post, coverage, latlong)
+
+```
+
+
+
+
+
+``` {r subsets, include = FALSE}
+
+# For Elise: a few easy subsample in case. They will be removed from this file later.
+
+
+lowSES = RCT %>% filter(Educ == "Bac")
+highSES = RCT %>% filter(Educ == "Sup")
+
+
+
+migrants = RCT %>% filter(FrenchYNBaseline == "Else")
+
+nonmigrants = RCT %>% filter(FrenchYNBaseline == "French")
+
+inactive = RCT %>% filter(ActiveMotherEndline == 0)
+active = RCT %>% filter(ActiveMotherEndline == 1)
+
+ECSUsers <- RCT %>% filter(ECSUse == "Oui")
+
+ECSNonUsers <- RCT %>% filter(ECSUse != "Oui")
+Control <- RCT %>% filter(Assignment == "Control")
+
+highSESC = highSES %>% filter(Assignment == "Control")
+migrantsc = migrants %>% filter(Assignment == "Control")
+nonmigrantsc = nonmigrants %>% filter(Assignment == "Control")
+
+lowSESC = lowSES %>% filter(Assignment == "Control")
+
+inactivec = inactive %>%  filter(Assignment == "Control")
+activec = active %>%  filter(Assignment == "Control")
+
+ECSPastUsers <- RCT %>% filter(as.factor(RCT$ECSUsed) == "Oui")
+
+ECSNonPastUsers <- RCT %>% filter(as.factor(RCT$ECSUsed) == "Non")
+
+
+HighECS <- RCT %>% filter(as.factor(RCT$HighLowECEC) == "High ECEC covering")
+
+LowECS <- RCT %>% filter(as.factor(RCT$HighLowECEC) == "Low ECEC covering")
+```
+
+
+```{r vouchers}
+## There is a problem with the first name in the qualtrics database
+# this is a problem to send the sheet to the voucher company
+
+# We create an augmented database with the Baseline first names and the email address
+Augmenteddb <- Baseline_augmented %>%  
+  mutate(PhoneMother = as.character(PhoneMother)) %>% 
+  select(PhoneMother, Mail, Prenom) %>% 
+  left_join(Prenoms_3, by = "PhoneMother")
+
+Augmenteddb <- Augmenteddb %>% 
+  filter(is.na(`Votre adresse`) == FALSE)
+
+
+library(stringr)
+
+# Create new columns for Address, Zipcode, and City
+Augmenteddb$Address_t <- str_extract(Augmenteddb$`Votre adresse`,  "^.+(?=\\b\\d{5}\\b)")
+Augmenteddb$Zipcode   <- str_extract(Augmenteddb$`Votre adresse`, "\\b\\d{5}\\b")
+Augmenteddb$City      <- str_extract(Augmenteddb$`Votre adresse`,  "(?<=\\b\\d{5}\\s).+")
+  
+# Write the Excel file for the current name
+# writexl::write_xlsx(Augmenteddb, "prenoms_cheques_3.xlsx", col_names = TRUE)
+
+#prenoms_cheques_2 <- read_excel("Data/prenoms_cheques_2.xlsx")
+
+
+# Remove the original address column if needed
+# your_data <- your_data[, -which(names(your_data) == "address")]
+
+# Display the resulting data frame
+#writexl::write_xlsx(prenoms_cheques_2, "prenoms_cheques_2.xlsx", col_names = TRUE)
+
+```
+
+
+
+
+This chunk is more dangerous than useful for slow laptops
+```{r cran_packages, include=FALSE,eval=TRUE}
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%##
+##### load or install libraries %%%%%%%%%%%##
+#####%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%##
+
+rm(list=ls())
+
+
+
+#Create a vector of the package you need
+list.of.packages <- c("writexl",
+                      "tidyverse", 'data.table', "summarytools", 
+                      "lubridate", # to work with dates
+                      "readxl",
+                      "modelsummary",#to make nice tables and also plots
+                      'interactions', "usethis",
+                      "ggExtra","ggthemes","cowplot", "corrplot", "naniar", "rpart", 
+                      'lfe',"fixest",
+                      "flextable",
+                    "eeptools", "estimatr"        # to compute ages
+                    )
+
+##Create a vector of the package you need
+#list.of.packages <- c("devtools", "writexl",
+#                      "formatR", "latex2exp",#to knit documents with R and LaTeX (or #Markdown), formatR makes code nice in outputs
+#                      "tidyverse",'data.table', "summarytools", #many important package #for RCT manipulation
+#                      "lubridate", # to work with dates
+#                      "readr","readxl",'haven', #to import and read RCT from R, Excel, #CSV, STATA, SAS, SPSS
+#                      "doParallel", 'parallel', # for parallel computing
+#                      "modelsummary","ggh4x", #to make nice tables and also plots
+#                      'interactions', "usethis",
+#                      "ggplot2","ggExtra","ggthemes","cowplot", "corrplot", "naniar", #"rpart", "rpart.plot",  "gridGraphics",
+#                       "viridis","RColorBrewer", ## for plots, with nice colors and themes
+#                      "DeclareDesign",'randomizr','jtools','lfe',"fixest", "ivdesc","qte", #"grf", #Package for estimation and other research design
+#                    #  "ggmap","googleway", # for maps
+#                      "hdm","did","DRDID", # for dif in dif and lasso
+#                      "magick", "pdftools", #for tikz
+#                      "equatiomatic", "flextable", "officer","htmltools",
+#                                            "multcomp" ,           # for joint hypothesis #testing
+#                    "eeptools", "DiagrammeR", "webshot",  "estimatr"        # to compute #ages
+#                      )
+
+#Check if they are all installed on your computer
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+#If they are not installed, then I'll download them from CRAN and install them.
+if(length(new.packages)) install.packages(new.packages, repos = "http://cran.us.r-project.org")
+
+#Install them
+invisible(lapply(list.of.packages, library, character.only = TRUE))
+
+#devtools::install_github("kupietz/kableExtra")
+
+li
+#Some package have conflicting commands sometimes so I make sure I have the one I want
+select <- dplyr::select
+summarize <- dplyr::summarize
+
+# I choose to use colorblind friendly colors, I encourage you to do so .
+# The palette with grey:
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# The palette with black:
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+#GGplot default them : black and white.
+    theme_set(theme_bw())
+
+
+    
+```
