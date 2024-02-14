@@ -84,7 +84,7 @@ for (col in colnames(Endline_data)){
 
 
 # convert relevant VARIABLES INTO numerical ones
-
+## Je suis toujours pas une moule
 
 names_numerical <- c("NormsOpposed_1_TEXT",
                      "AffordCost_1_TEXT", "Duration (in seconds)", "MovedZipcode_1_TEXT", 
