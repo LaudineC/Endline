@@ -704,7 +704,7 @@ rm(ECS_df)
 ## In this chunk we augment RCT with spatial data about the ECS coverage rate at endline, spatial coordinates, and the number of participants per city at Endline
 
 ##BONJOUR !!!
-
+# Je suis une moule. 
 
 #### STEP 1           #### 
 #### Data preparation #### 
